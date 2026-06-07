@@ -1,0 +1,6 @@
+{
+  "name": "Microfinance Platform",
+  "description": "Premium microfinance management SaaS with role-based dashboard, loan computation, credit analysis, and printable financial reports in MZN.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

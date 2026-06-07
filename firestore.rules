@@ -1,0 +1,180 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Role Lookup Helpers
+    function getCompanyUser(empresaId) {
+      return get(/databases/$(database)/documents/empresas/$(empresaId)/usuarios/$(request.auth.uid)).data;
+    }
+
+    function isCompanyMember(empresaId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/empresas/$(empresaId)/usuarios/$(request.auth.uid));
+    }
+
+    function isCompanyAdmin(empresaId) {
+      return isCompanyMember(empresaId) && (
+        getCompanyUser(empresaId).role == "SUPER_ADMIN" || 
+        getCompanyUser(empresaId).role == "MASTER_USER"
+      );
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/empresas/com-1/usuarios/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/empresas/com-1/usuarios/$(request.auth.uid)).data.role == "SUPER_ADMIN"
+      );
+    }
+
+    // Entity Validation Helpers
+    function isValidCompany(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+             (!('parent_id' in data) || data.parent_id is string);
+    }
+
+    function isValidUser(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.phone is string && data.phone.size() <= 30 &&
+             data.fullName is string && data.fullName.size() <= 200 &&
+             data.role in ['SUPER_ADMIN', 'MASTER_USER', 'SECONDARY_USER'] &&
+             data.companyId is string && data.companyId.size() <= 128;
+    }
+
+    function isValidClient(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 200 &&
+             data.phone is string && data.phone.size() <= 30 &&
+             data.companyId is string && data.companyId.size() <= 128;
+    }
+
+    function isValidLoan(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.clientId is string && data.clientId.size() <= 128 &&
+             data.principalAmount is number && data.principalAmount >= 0 &&
+             data.interestRate is number && data.interestRate >= 0 &&
+             data.termMonths is number && data.termMonths > 0 &&
+             data.companyId is string && data.companyId.size() <= 128;
+    }
+
+    function isValidPayment(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.loanId is string && data.loanId.size() <= 128 &&
+             data.amount is number && data.amount > 0 &&
+             data.companyId is string && data.companyId.size() <= 128;
+    }
+
+    function isValidLog(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.action is string && data.action.size() <= 200 &&
+             data.companyId is string && data.companyId.size() <= 128;
+    }
+
+    // Root level synchronization structures for server-synergized flat database collections
+    match /companies/{id} {
+      allow read, write: if true;
+    }
+    match /users/{id} {
+      allow read, write: if true;
+    }
+    match /clients/{id} {
+      allow read, write: if true;
+    }
+    match /loans/{id} {
+      allow read, write: if true;
+    }
+    match /logs/{id} {
+      allow read, write: if true;
+    }
+    match /settings/{id} {
+      allow read, write: if true;
+    }
+    match /backups/{id} {
+      allow read, write: if true;
+    }
+
+    // Capture-all fall through rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primary Tenant match blocks
+    match /empresas/{empresaId} {
+      // Allow read/write for verified members of the company or global owners
+      allow get: if isCompanyMember(empresaId) || isSuperAdmin();
+      allow list: if isSuperAdmin();
+
+      allow create: if isSignedIn() && isValidId(empresaId) && isValidCompany(incoming());
+      
+      allow update: if (isCompanyAdmin(empresaId) || isSuperAdmin()) && 
+                       isValidCompany(incoming()) && 
+                       incoming().id == existing().id;
+                       
+      allow delete: if isSuperAdmin();
+
+      // Nested Subcollections
+      match /usuarios/{usuarioId} {
+        allow get: if isCompanyMember(empresaId) || isSuperAdmin();
+        allow list: if isCompanyAdmin(empresaId) || isSuperAdmin();
+
+        allow create: if isSignedIn() && isValidId(usuarioId) && isValidUser(incoming());
+        
+        allow update: if (isCompanyAdmin(empresaId) || request.auth.uid == usuarioId || isSuperAdmin()) &&
+                         isValidUser(incoming()) &&
+                         incoming().role == existing().role; // Users can't escalate roles
+                         
+        allow delete: if isCompanyAdmin(empresaId) || isSuperAdmin();
+      }
+
+      match /clientes/{clienteId} {
+        allow get: if isCompanyMember(empresaId) || isSuperAdmin();
+        allow list: if isCompanyMember(empresaId) || isSuperAdmin();
+
+        allow create: if isCompanyMember(empresaId) && isValidId(clienteId) && isValidClient(incoming());
+        allow update: if isCompanyMember(empresaId) && isValidClient(incoming()) && incoming().companyId == existing().companyId;
+        allow delete: if isCompanyAdmin(empresaId) || isSuperAdmin();
+      }
+
+      match /creditos/{creditoId} {
+        allow get: if isCompanyMember(empresaId) || isSuperAdmin();
+        allow list: if isCompanyMember(empresaId) || isSuperAdmin();
+
+        allow create: if isCompanyMember(empresaId) && isValidId(creditoId) && isValidLoan(incoming());
+        allow update: if isCompanyMember(empresaId) && isValidLoan(incoming()) && incoming().companyId == existing().companyId;
+        allow delete: if isCompanyAdmin(empresaId) || isSuperAdmin();
+      }
+
+      match /pagamentos/{pagamentoId} {
+        allow get: if isCompanyMember(empresaId) || isSuperAdmin();
+        allow list: if isCompanyMember(empresaId) || isSuperAdmin();
+
+        allow create: if isCompanyMember(empresaId) && isValidId(pagamentoId) && isValidPayment(incoming());
+        allow update: if isCompanyMember(empresaId) && isValidPayment(incoming()) && incoming().companyId == existing().companyId;
+        allow delete: if isCompanyAdmin(empresaId) || isSuperAdmin();
+      }
+
+      match /relatorios/{relatorioId} {
+        allow get, list: if isCompanyMember(empresaId) || isSuperAdmin();
+        allow create: if isCompanyMember(empresaId) && isValidId(relatorioId) && isValidLog(incoming());
+        allow update, delete: if isSuperAdmin();
+      }
+    }
+  }
+}

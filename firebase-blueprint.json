@@ -1,0 +1,131 @@
+{
+  "entities": {
+    "Company": {
+      "title": "Company",
+      "description": "Represents a company or tenant in the application.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "nuit": { "type": "string" },
+        "address": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "plan": { "type": "string", "enum": ["BASICO", "PRO", "PREMIUM"] },
+        "initialBalance": { "type": "number" },
+        "currentBalance": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "plan"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Represents a user account in the system.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "phone": { "type": "string" },
+        "fullName": { "type": "string" },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "MASTER_USER", "SECONDARY_USER"] },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "passwordHash": { "type": "string" },
+        "companyId": { "type": "string" }
+      },
+      "required": ["id", "phone", "fullName", "role", "companyId"]
+    },
+    "Client": {
+      "title": "Client",
+      "description": "Represents a microcredit client.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fullName": { "type": "string" },
+        "phone": { "type": "string" },
+        "idPassport": { "type": "string" },
+        "address": { "type": "string" },
+        "financialStatus": { "type": "string", "enum": ["EXCELLENT", "STABLE", "RISKY", "OVERDUE"] },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "companyId": { "type": "string" }
+      },
+      "required": ["id", "fullName", "phone", "companyId"]
+    },
+    "Loan": {
+      "title": "Loan",
+      "description": "Represents a microcredit loan agreement.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "principalAmount": { "type": "number" },
+        "interestRate": { "type": "number" },
+        "termMonths": { "type": "number" },
+        "frequency": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "totalPayable": { "type": "number" },
+        "amountPaid": { "type": "number" },
+        "remainingAmount": { "type": "number" },
+        "companyId": { "type": "string" }
+      },
+      "required": ["id", "clientId", "principalAmount", "interestRate", "termMonths", "companyId"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Represents a payment received for a loan.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "loanId": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "receiptNumber": { "type": "string" },
+        "companyId": { "type": "string" }
+      },
+      "required": ["id", "loanId", "amount", "date", "companyId"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Audit log for security actions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "companyId": { "type": "string" }
+      },
+      "required": ["id", "userId", "action", "timestamp", "companyId"]
+    }
+  },
+  "firestore": {
+    "empresas/{empresaId}": {
+      "schema": "Company",
+      "description": "Company document details and balance."
+    },
+    "empresas/{empresaId}/usuarios/{usuarioId}": {
+      "schema": "User",
+      "description": "Tenant user access."
+    },
+    "empresas/{empresaId}/clientes/{clienteId}": {
+      "schema": "Client",
+      "description": "Client profile."
+    },
+    "empresas/{empresaId}/creditos/{creditoId}": {
+      "schema": "Loan",
+      "description": "Client microloans."
+    },
+    "empresas/{empresaId}/pagamentos/{pagamentoId}": {
+      "schema": "Payment",
+      "description": "Loan repayments."
+    },
+    "empresas/{empresaId}/relatorios/{relatorioId}": {
+      "schema": "ActivityLog",
+      "description": "Audit & Activity logs."
+    }
+  }
+}
